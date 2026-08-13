@@ -1,13 +1,16 @@
 # Info
-Project to use a raspberry pi with a small screen and test a new programming stack.
+A tablet shell written in Svelte, with .NET providing system services and persistent storage.
+
+
+
 
 ## Tech Stack:
 * Frontend: 
     * Svelte
 * Backend: 
-    * Go
+    * .Net
 * Local Storage: 
-    * SQLite (Not decided)
+    * SQLite
 * Hardware:  
     * Raspberry Pi 5
     * 320 x 480 screen
