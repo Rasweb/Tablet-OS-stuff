@@ -1,7 +1,7 @@
 <script lang="ts">
   import Home from "./lib/views/Home.svelte";
   import Dock from "./lib/components/Dock.svelte";
-  import Gemshift from "./lib/views/Gemshift.svelte";
+  import Gemshift from "./lib/views/gemshift/Gemshift.svelte";
   import { navigation } from "./lib/state/navigation.svelte.js";
   import type {App} from "./lib/state/types";
 

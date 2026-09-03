@@ -1,7 +1,7 @@
 # Info
 A tablet shell written in Svelte, with .NET providing system services and persistent storage.
 
-
+Read about FreeBSD for the raspberry pi
 
 
 ## Tech Stack:
