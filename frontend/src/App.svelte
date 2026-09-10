@@ -33,6 +33,7 @@
   }
 
   .tablet-shell {
+    position: relative;
     width: 320px;
     height: 480px;
     margin: 0 auto;

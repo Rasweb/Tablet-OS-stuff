@@ -45,8 +45,16 @@ function createRandomBoard(): Gem[][] {
     )
 }
 
-function calculateMatchPoints(count: number): number {
-    return count >= MATCH_LENGTH ? (count - 2) * 10 : 0
+// Cascade is a chain reaction of matches
+function calculateMatchPoints(count: number, cascade: number): number {
+    if (count < MATCH_LENGTH) {
+        return 0
+    }
+
+    const lengthBonus = (count - MATCH_LENGTH) * 10
+    const cascadeMultiplier = cascade + 1
+
+    return (count * 10 + lengthBonus) * cascadeMultiplier
 }
 
 /** * Create a board that: 
@@ -158,7 +166,7 @@ function createsMatchAfterSwap(
 
 
 // Check whether the board has at least one possible move
-function hasValidMove(board: Gem[][]): boolean {
+export function hasValidMove(board: Gem[][]): boolean {
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
             const position = {r, c}
@@ -192,10 +200,12 @@ function hasValidMove(board: Gem[][]): boolean {
 export function resolveMatches(board: Gem[][]): {
     board: Gem[][]
     points: number
+    cascades: number
 } {
 
     let currentBoard = board
     let points = 0
+    let cascade = 0
 
     while (true){
         const matches = findMatches(currentBoard)
@@ -204,7 +214,8 @@ export function resolveMatches(board: Gem[][]): {
             break
         }
 
-        points += calculateMatchPoints(matches.length)
+        points += calculateMatchPoints(matches.length, cascade)
+        cascade++
 
         const matched = new Set(
             matches.map(({r,c}) => r * SIZE + c),
@@ -237,6 +248,7 @@ export function resolveMatches(board: Gem[][]): {
     return { 
         board: currentBoard, 
         points, 
+        cascades: cascade,
     }
 }
 

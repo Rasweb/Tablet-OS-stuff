@@ -19,10 +19,17 @@
 
 <style>
   .dock {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    left: 12px;
     display: flex;
     justify-content: center;
     gap: 22px;
     padding-top: 6px;
+    pointer-events: none;
+    z-index: 10;
+    background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.95) 18px);
   }
 
   .dock button {
@@ -34,6 +41,7 @@
     color: white;
     font-size: 18px;
     cursor: pointer;
+    pointer-events: auto;
   }
 
 </style>
