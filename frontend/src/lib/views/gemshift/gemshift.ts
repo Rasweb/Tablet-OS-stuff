@@ -1,8 +1,25 @@
 export const SIZE = 8
-export  const MATCH_LENGTH = 3
-export  const kinds = ['blue', 'green', 'purple', 'yellow', 'white', 'red'] as const
-export  type GemKind = typeof kinds[number]
-export  type Gem = { id: number; kind: GemKind }
+export const MATCH_LENGTH = 3
+
+export const kinds = [
+    'blue',
+    'green',
+    'purple',
+    'yellow',
+    'white',
+    'red'
+] as const
+
+export type GemKind = (typeof kinds)[number]
+
+export type Gem = {
+    id: number;
+    kind: GemKind
+}
+export type Position = {
+    r: number,
+    c: number
+}
 
 let nextId = 0
 
@@ -10,136 +27,217 @@ function randomKind(): GemKind {
     return kinds[Math.floor(Math.random() * kinds.length)]
 }
 
+function createGem(): Gem {
+    return {
+        id: nextId++,
+        kind: randomKind(),
+    }
+}
+
 // Builds and returns a square 2D array of gems
 // Result: SIZE * SIZE board
 function createRandomBoard(): Gem[][] {
-// Creates an outer array with SIZE rows and runs once per row
-return Array.from({ length: SIZE }, () =>
-    // Creates SIZE gems inside each row
-    // Each gem gets: ID, a random gem type.
-    Array.from({ length: SIZE }, () => ({
-    id: nextId++,
-    kind: randomKind(),
-    })),
-)
+    // Creates an outer array with SIZE rows and runs once per row
+    return Array.from({ length: SIZE }, () =>
+        // Creates SIZE gems inside each row
+        // Each gem gets: ID, a random gem type.
+        Array.from({ length: SIZE }, createGem),
+    )
 }
 
-// Function to check a valid board
-// Check if there are any matches, check whether it has at least one valid move, retry if check fails.
-// createRandomBoard() - creates a random board
-// findMatches() - detects matches that already exist
-// hasValidMove() - Test whether at least one possible swap would create a match
-export function createPlaybleBoard(): Gem[][]{
-for (let attempt = 0; attempt < 500; attempt++) {
-    const board = createRandomBoard();
-    
-    if(findMatches(board).length === 0 && hasValidMove(board)){
-    return board
-    }
+function calculateMatchPoints(count: number): number {
+    return count >= MATCH_LENGTH ? (count - 2) * 10 : 0
 }
 
-throw new Error("Unable to create playable board");
-}
+/** * Create a board that: 
+ * * - has no existing matches 
+ * * - has at least one possible move */
+export function createPlayableBoard(): Gem[][] {
+    for (let attempt = 0; attempt < 500; attempt++) {
+        const board = createRandomBoard();
 
-// Find the matching line that starts at a cell in one direction.
-// Receives: board, row, column, rowstep, columnstep
-// E.g horizontal - findLineMatch(board, r, c, 0 ,1) - stay on the same row and move right
-// E.g vertical - findLineMatch(board, r, c, 1, 0) - move down one row and stay in the same column
-function findLineMatch(
-board: Gem[][],
-startRow: number,
-startColumn: number,
-rowStep: number,
-columnStep: number,
-): { r: number; c: number }[] {
-const kind = board[startRow][startColumn].kind
-const matchingCells: { r: number; c: number }[] = []
-
-for (let offset = 0; offset < SIZE; offset++) {
-    const r = startRow + offset * rowStep
-    const c = startColumn + offset * columnStep
-
-    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE || board[r]?.[c]?.kind !== kind) {
-    break
-    }
-
-    matchingCells.push({ r, c })
-}
-
-return matchingCells
-}
-
-// Accepts a two-dimensional array of gems.
-// Returns every cell that belongs to a horizontal or vertical match.
-export function findMatches(board: Gem[][]): { r: number; c: number }[] {
-const matches = new Set<string>()
-
-board.slice(0, SIZE).forEach((row, r) => {
-    row.slice(0, SIZE).forEach((_gem, c) => {
-    const horizontalMatch = findLineMatch(board, r, c, 0, 1)
-    const verticalMatch = findLineMatch(board, r, c, 1, 0)
-
-    if (horizontalMatch.length >= MATCH_LENGTH) {
-        horizontalMatch.forEach(({ r: matchRow, c: matchColumn }) => {
-        matches.add(`${matchRow},${matchColumn}`)
-        })
-    }
-
-    if (verticalMatch.length >= MATCH_LENGTH) {
-        verticalMatch.forEach(({ r: matchRow, c: matchColumn }) => {
-        matches.add(`${matchRow},${matchColumn}`)
-        })
-    }
-    })
-})
-
-// Convert set to array and each string position
-// E.g: "2,4" becomes ["2", "4"]
-// Returns, E.g: {r: 2, c: 4}
-return [...matches].map((position) => {
-    const [r, c] = position.split(',').map(Number)
-    return { r, c }
-})
-}
-
-// Temporarily swaps two gems, checks for a match, then restores the board.
-function createsMatchAfterSwap(
-board: Gem[][],
-firstRow: number,
-firstColumn: number,
-secondRow: number,
-secondColumn: number,
-): boolean {
-const firstGem = board[firstRow][firstColumn]
-const secondGem = board[secondRow][secondColumn]
-
-// Swaps the gems 
-board[firstRow][firstColumn] = secondGem
-board[secondRow][secondColumn] = firstGem
-
-const createsMatch = findMatches(board).length > 0
-
-board[firstRow][firstColumn] = firstGem
-board[secondRow][secondColumn] = secondGem
-
-return createsMatch
-}
-
-// A receives a board and returns a boolean
-function hasValidMove(board: Gem[][]): boolean {
-// Visits each row
-    for (let r = 0; r < board.length; r++) {
-    // Visits each column in row
-    for (let c = 0; c < board[r].length; c++) {
-        for (const [nextR, nextC] of [[r, c + 1], [r + 1, c]]) {
-        // CHANGE Check boundaries explicity
-        if (!board[nextR]?.[nextC]) continue
-
-        if (createsMatchAfterSwap(board, r, c, nextR, nextC)) return true
+        if (findMatches(board).length === 0 && hasValidMove(board)) {
+            return board
         }
     }
+
+    throw new Error("Unable to create playable board");
+}
+
+// Find all matching gems in one direction.
+function findLineMatch(
+    board: Gem[][],
+    start: Position,
+    rowStep: number,
+    columnStep: number,
+): Position[] {
+    const kind = board[start.r][start.c].kind
+    const matches: Position[] = []
+
+    let r = start.r
+    let c = start.c
+
+    while (
+        r >= 0 &&
+        r < SIZE &&
+        c >= 0 &&
+        c < SIZE &&
+        board[r][c].kind === kind
+    ) {
+        matches.push({ r, c })
+        r += rowStep
+        c += columnStep
+    }
+
+    return matches
+}
+
+/** 
+ * * Find every gem that belongs to a horizontal * 
+ * or vertical match. 
+ * */
+export function findMatches(board: Gem[][]): Position[] {
+    const matches = new Set<number>()
+    for (let r = 0; r < SIZE; r++) { 
+        for (let c = 0; c < SIZE; c++) { 
+            const horizontal = findLineMatch(
+                board, 
+                { r, c }, 
+                0, 
+                1,
+            ) 
+                
+            const vertical = findLineMatch(
+                board, 
+                { r, c }, 
+                1, 
+                0,
+            ) 
+            
+            if (horizontal.length >= MATCH_LENGTH) {
+                for (const position of horizontal) { 
+                    matches.add(position.r * SIZE + position.c) 
+                } 
+            } 
+            if (vertical.length >= MATCH_LENGTH) { 
+                for (const position of vertical) { 
+                    matches.add(position.r * SIZE + position.c) 
+                } 
+            } 
+        } 
+    }
+
+    return [...matches].map((key) => ({ 
+        r: Math.floor(key / SIZE), 
+        c: key % SIZE, 
+    }))
+}
+
+// Swap two gems in a board
+export function swapGems(board: Gem[][], first: Position, second: Position) {
+    const temp = board[first.r][first.c]
+
+    board[first.r][first.c] = board[second.r][second.c]
+    board[second.r][second.c] = temp
+}
+
+// Swap check for a match, then swap back
+function createsMatchAfterSwap(
+    board: Gem[][],
+    first: Position,
+    second: Position,
+): boolean {
+    swapGems(board, first, second)
+
+    const createsMatch = findMatches(board).length > 0
+
+    swapGems(board, first, second)
+
+    return createsMatch
+}
+
+
+// Check whether the board has at least one possible move
+function hasValidMove(board: Gem[][]): boolean {
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            const position = {r, c}
+
+            // Check right
+            if(
+                c + 1 < SIZE &&
+                createsMatchAfterSwap(board, position, {r, c: c + 1})
+            ) {
+                return true
+            }
+
+            // check down
+            if(
+                r + 1 < SIZE &&
+                createsMatchAfterSwap(board, position, {r: r + 1, c})
+            ) {
+                return true
+            }
+        }
     }
 
     return false
-
 }
+
+// Process:
+// - Remove matches
+// - Collapse columns
+// - Fill empty spaces
+// - Continue until there are no more matches left
+export function resolveMatches(board: Gem[][]): {
+    board: Gem[][]
+    points: number
+} {
+
+    let currentBoard = board
+    let points = 0
+
+    while (true){
+        const matches = findMatches(currentBoard)
+
+        if(matches.length === 0){
+            break
+        }
+
+        points += calculateMatchPoints(matches.length)
+
+        const matched = new Set(
+            matches.map(({r,c}) => r * SIZE + c),
+        )
+
+        const nextBoard = Array.from(
+            {length: SIZE}, 
+            () => Array<Gem>(SIZE),
+        )
+
+        for (let c = 0; c < SIZE; c++) { 
+            let writeRow = SIZE - 1 
+            
+            // Move existing gems down. 
+            for (let r = SIZE - 1; r >= 0; r--) { 
+                if (!matched.has(r * SIZE + c)) { 
+                    nextBoard[writeRow][c] = currentBoard[r][c] 
+                    writeRow-- 
+                } 
+            } // Fill the remaining spaces. 
+            while (writeRow >= 0) { 
+                nextBoard[writeRow][c] = createGem() 
+                writeRow-- 
+            } 
+        } 
+        
+        currentBoard = nextBoard 
+    } 
+    
+    return { 
+        board: currentBoard, 
+        points, 
+    }
+}
+
+

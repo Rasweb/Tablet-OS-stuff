@@ -1,9 +1,13 @@
 <script lang="ts">
 
   import {
-    createPlaybleBoard,
+    createPlayableBoard,
+    findMatches,
+    resolveMatches,
+    swapGems,
     type Gem,
     type GemKind,
+    type Position
   } from './gemshift'
 
   const emoji: Record<GemKind, string> = {
@@ -15,23 +19,50 @@
     red: '🔴',
   }
 
-  let board = $state<Gem[][]>(createPlaybleBoard())
-  let selected = $state<{ r: number; c: number } | null>(null)
 
-  // Handlig interaction
-  // No selection: 
-  // - tap gem
-  // First gem selected: 
-  // - tap same gem - deselect
-  // - tap non-adjacent gem: select the new gem
-  // - tap adjacent gem: attempt swap
-  // After swap:
-  // - if swap creates a match, keep it
-  // - otherwise: undo swap
-  // - clear selection
+  let score = $state(0)
+  let board = $state<Gem[][]>(createPlayableBoard())
+  let selected = $state<Position | null>(null)
+
+  function isAdjacent(a: Position, b: Position): boolean {
+    return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1 
+  }
+
   function onGem(r: number, c: number) {
-    selected = { r, c }
-    // next: second tap = swap if adjacent
+    const clicked = { r, c }
+
+    // Nothing is selected
+    if (!selected) {
+      selected = clicked
+      return
+    }
+
+    // Click the selected gem again to deselect it
+    if (selected.r === r && selected.c === c) {
+      selected = null
+      return
+    }
+
+    // Clicking a non-adjacent gem selects that gem
+    if(!isAdjacent(selected,clicked)){
+      selected = clicked
+      return
+    }
+
+    // Try the swap on a copy of the board
+    const testBoard = board.map((row) => [...row])
+
+    swapGems(testBoard, selected, clicked)
+
+    // Only allow swaps that create a match
+    if(findMatches(testBoard).length > 0) {
+      const result = resolveMatches(testBoard)
+
+      board = result.board
+      score += result.points
+    }
+
+    selected = null
   }
 </script>
 
@@ -40,6 +71,8 @@
 </header>
 
 <main class="game-root">
+<div>Points: {score}</div>
+
   <div class="board">
     {#each board as row, r (r)}
       {#each row as gem, c (gem.id)}
