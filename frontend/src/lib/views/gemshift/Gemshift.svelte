@@ -30,8 +30,10 @@
   let highScore = $state(0)
   let cascadeMessage = $state('')
   let messageTimer: ReturnType<typeof setTimeout> | undefined
+  let invalidSwap = $state(false)
 
   const HIGH_SCORE_KEY = 'gemshift-high-score'
+  const LEVEL_SCORE = 1000
 
   onMount(() => {
     try {
@@ -47,26 +49,20 @@
     return () => {
       if (messageTimer) {
         clearTimeout(messageTimer)
+        messageTimer = undefined
       }
     }
   })
 
-  function levelTarget(currentLevel: number): number {
-    return currentLevel * 1000
-  }
-
-  function levelStart(currentLevel: number): number {
-    return (currentLevel - 1) * 1000
-  }
-
   function levelProgress(): number {
-    const start = levelStart(level)
-    const target = levelTarget(level)
-    return Math.min(100, Math.round(((score - start) / (target - start)) * 100))
+    const progress = score % LEVEL_SCORE
+    return Math.min(100, Math.round(((progress / LEVEL_SCORE)) * 100))
   }
 
   function saveHighScore(value: number) {
-    highScore = Math.max(highScore, value)
+    if(value <= highScore) return
+
+    highScore = value
 
     try {
       localStorage.setItem(HIGH_SCORE_KEY, String(highScore))
@@ -78,17 +74,22 @@
   function showCascadeMessage(cascades: number) {
     if (messageTimer) {
       clearTimeout(messageTimer)
+      messageTimer = undefined
     }
 
     cascadeMessage = `Cascade ${cascades} - Combo x${cascades}`
+
     messageTimer = setTimeout(() => {
       cascadeMessage = ''
+      messageTimer = undefined
     }, 1800)
   }
 
   function resetGame() {
     if (messageTimer) {
       clearTimeout(messageTimer)
+      messageTimer = undefined
+
     }
 
     score = 0
@@ -133,25 +134,36 @@
 
     swapGems(testBoard, selected, clicked)
 
-    // Only allow swaps that create a match
-    if(findMatches(testBoard).length > 0) {
-      const result = resolveMatches(testBoard)
+    const createsMatch = findMatches(testBoard).length > 0
+    
+    if(!createsMatch){
+      invalidSwap = true
+      
+      selected = null
 
-      board = result.board
-      score += result.points
-      saveHighScore(score)
+      setTimeout(() => {
+        invalidSwap = false
+      }, 150)
 
-      if (result.cascades > 0) {
-        showCascadeMessage(result.cascades)
-      }
+      return
+    }
 
-      while (score >= levelTarget(level)) {
-        level++
-      }
+    const result = resolveMatches(testBoard)
 
-      if (!hasValidMove(board)) {
-        gameOver = true
-      }
+    board = result.board
+    score += result.points
+    saveHighScore(score)
+
+    if(result.cascades > 0){
+      showCascadeMessage(result.cascades)
+    }
+
+    while(score >= level * LEVEL_SCORE){
+      level++
+    }
+
+    if(!hasValidMove(board)){
+      gameOver = true
     }
 
     selected = null
@@ -159,12 +171,12 @@
 </script>
 
 <header class="game-header">
-  <h2>Bejeweled</h2>
+  <h2>💎 GemShift</h2>
 </header>
 
 <main class="game-root">
   <div class="score-panel">
-    <div>Points: {score}</div>
+    <div>Score: {score}</div>
     <div>Level: {level}</div>
     <div>High score: {highScore}</div>
   </div>
@@ -173,7 +185,7 @@
     <span>Level progress</span>
     <span>{levelProgress()}%</span>
   </div>
-  <progress max="100" value={levelProgress()} aria-label="Level progress">
+  <progress max="100" value={levelProgress()}>
     {levelProgress()}%
   </progress>
 
@@ -181,7 +193,7 @@
     <div class="cascade-message" role="status">{cascadeMessage}</div>
   {/if}
 
-  <div class:game-over={gameOver} class="board">
+  <div class:game-over={gameOver} class:invalid-swap={invalidSwap} class="board">
     {#each board as row, r (r)}
       {#each row as gem, c (gem.id)}
         <button
@@ -195,6 +207,11 @@
       {/each}
     {/each}
 
+    {#if cascadeMessage}
+      <div class="cascade-message" role="status">
+        {cascadeMessage}
+      </div>
+    {/if}
     {#if gameOver}
       <div class="game-over-message">
         <strong>Game over</strong>
@@ -216,21 +233,46 @@
   }
 
   .game-root {
-    padding-bottom: 52px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .progress-label {
+    width: 100%;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+    progress {
+    width: 100%;
+    height: 12px;
+    margin-bottom: 12px;
+    accent-color: #fbbf24;
   }
 
   .board {
     position: relative;
-    width: 260px;
-    height: 260px;
+    width: min(100%, 280px);
+    aspect-ratio: 1;
+    margin: 0 auto;
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
     gap: 2px;
     background: #111;
-    border-radius: 8px;
-    padding: 4px;
     box-sizing: border-box;
+    
+    background: linear-gradient(145deg, #1e293b, #020617);
+    border: 2px solid rgba(255, 255, 255, .12);
+    border-radius: 14px;
+    box-shadow: 
+    0 8px 20px rgba(0, 0, 0, .35), 
+    inset 0 1px 1px rgba(255, 255, 255, .08);
+    padding: 6px;
   }
 
   .gem {
@@ -256,26 +298,22 @@
     margin-bottom: 12px;
   }
 
-  .progress-label {
-    display: flex;
-    justify-content: space-between;
-    width: 260px;
-    margin-bottom: 4px;
-  }
+.cascade-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
 
-  progress {
-    width: 260px;
-    height: 12px;
-    margin-bottom: 12px;
-    accent-color: #fbbf24;
-  }
+  padding: 8px 14px;
+  border-radius: 8px;
 
-  .cascade-message {
-    min-height: 24px;
-    margin-bottom: 8px;
-    color: #b45309;
-    font-weight: 700;
-  }
+  color: white;
+  background: rgba(17, 17, 17, 0.85);
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
   .game-over {
     opacity: 0.72;
@@ -300,6 +338,17 @@
     padding: 8px 12px;
     cursor: pointer;
   }
+
+.board.invalid-swap {
+  animation: shake 150ms ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
 </style>
 
 

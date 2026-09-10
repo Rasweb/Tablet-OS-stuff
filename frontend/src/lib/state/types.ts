@@ -1,4 +1,4 @@
-export type App = {
+export type AppDefinition = {
     name: string;
     icon: string;
   }

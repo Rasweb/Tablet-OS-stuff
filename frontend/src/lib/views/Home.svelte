@@ -1,7 +1,7 @@
 <script lang="ts">
   import { go } from "../state/navigation.svelte.js";
-  import type { App } from "../state/types.js";
-  export let apps: App[] = [];
+  import type { AppDefinition } from "../state/types.js";
+  export let apps: AppDefinition[] = [];
 
   const time: string = '12:42';
   const battery: string = '87%';   
