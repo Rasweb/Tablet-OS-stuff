@@ -6,12 +6,8 @@
   import type {AppDefinition} from "./lib/state/types";
 
   const apps: AppDefinition[] = [
-    { name: 'Notes', icon: '📝' },
-    { name: 'Music', icon: '🎵' },
     { name: 'GemShift', icon: '🎮' },
-    { name: 'Weather', icon: '☀️' },
     { name: 'Settings', icon: '⚙️' },
-    { name: 'Calculator', icon: '🧮' }
   ];
 </script>
 

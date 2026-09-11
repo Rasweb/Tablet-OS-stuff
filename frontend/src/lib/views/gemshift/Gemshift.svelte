@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import GemshiftMenu from './Home.svelte'
 
   import {
-    createPlayableBoard,
     findMatches,
-    hasValidMove,
     resolveMatches,
     swapGems,
-    type Gem,
     type GemKind,
     type Position
   } from './gemshift'
+
+  import { modes, type GameMode, type GameState, type ModeId } from './types'
 
   const emoji: Record<GemKind, string> = {
     blue: '🔷',
@@ -22,30 +22,18 @@
   }
 
 
-  let score = $state(0)
-  let level = $state(1)
-  let board = $state<Gem[][]>(createPlayableBoard())
   let selected = $state<Position | null>(null)
-  let gameOver = $state(false)
-  let highScore = $state(0)
   let cascadeMessage = $state('')
   let messageTimer: ReturnType<typeof setTimeout> | undefined
   let invalidSwap = $state(false)
 
   const HIGH_SCORE_KEY = 'gemshift-high-score'
-  const LEVEL_SCORE = 1000
+  let selectedModeId = $state<ModeId>('classic')
+  let showMenu = $state(true)
+  const mode = $derived(modes[selectedModeId])
+  let gameState = $state<GameState>(modes.classic.createState())
 
   onMount(() => {
-    try {
-      const savedHighScore = Number(localStorage.getItem(HIGH_SCORE_KEY))
-
-      if (Number.isFinite(savedHighScore) && savedHighScore > 0) {
-        highScore = savedHighScore
-      }
-    } catch {
-      // Local storage can be unavailable in privacy-restricted browsers.
-    }
-
     return () => {
       if (messageTimer) {
         clearTimeout(messageTimer)
@@ -55,20 +43,8 @@
   })
 
   function levelProgress(): number {
-    const progress = score % LEVEL_SCORE
-    return Math.min(100, Math.round(((progress / LEVEL_SCORE)) * 100))
-  }
-
-  function saveHighScore(value: number) {
-    if(value <= highScore) return
-
-    highScore = value
-
-    try {
-      localStorage.setItem(HIGH_SCORE_KEY, String(highScore))
-    } catch {
-      // The game still works when persistence is unavailable.
-    }
+    const progress = gameState.score % 1000
+    return Math.min(100, Math.round((progress / 1000) * 100))
   }
 
   function showCascadeMessage(cascades: number) {
@@ -85,19 +61,29 @@
     }, 1800)
   }
 
-  function resetGame() {
+  function resetGame(newMode: GameMode) {
     if (messageTimer) {
       clearTimeout(messageTimer)
       messageTimer = undefined
 
     }
 
-    score = 0
-    level = 1
-    board = createPlayableBoard()
+    gameState = newMode.createState()
+
     selected = null
-    gameOver = false
     cascadeMessage = ''
+    invalidSwap = false
+  }
+
+  function changeMode(modeId: ModeId) {
+    selectedModeId = modeId
+    resetGame(modes[modeId])
+  }
+
+  function startGame(modeId: ModeId) {
+    selectedModeId = modeId
+    resetGame(modes[modeId])
+    showMenu = false
   }
 
   function isAdjacent(a: Position, b: Position): boolean {
@@ -105,7 +91,7 @@
   }
 
   function onGem(r: number, c: number) {
-    if (gameOver) {
+    if (gameState.gameOver) {
       return
     }
 
@@ -130,7 +116,7 @@
     }
 
     // Try the swap on a copy of the board
-    const testBoard = board.map((row) => [...row])
+    const testBoard = gameState.board.map((row) => [...row])
 
     swapGems(testBoard, selected, clicked)
 
@@ -150,35 +136,41 @@
 
     const result = resolveMatches(testBoard)
 
-    board = result.board
-    score += result.points
-    saveHighScore(score)
+    gameState.board = result.board
+    gameState.score += result.points
+    mode.onMove(gameState)
+    gameState.gameOver = mode.isGameOver(gameState)
 
     if(result.cascades > 0){
       showCascadeMessage(result.cascades)
-    }
-
-    while(score >= level * LEVEL_SCORE){
-      level++
-    }
-
-    if(!hasValidMove(board)){
-      gameOver = true
     }
 
     selected = null
   }
 </script>
 
+{#if showMenu}
+  <GemshiftMenu onStart={startGame} />
+{:else}
 <header class="game-header">
-  <h2>💎 GemShift</h2>
+  <h3> s {gameState.name}</h3>
+  <!-- <label class="mode-picker">
+    <span>Mode</span>
+    <select
+      value={selectedModeId}
+      onchange={(event) => changeMode(event.currentTarget.value as ModeId)}
+    >
+      {#each Object.entries(modes) as [modeId, modeDefinition]}
+        <option value={modeId}>{modeDefinition.name}</option>
+      {/each}
+    </select>
+  </label> -->
 </header>
 
 <main class="game-root">
   <div class="score-panel">
-    <div>Score: {score}</div>
-    <div>Level: {level}</div>
-    <div>High score: {highScore}</div>
+    <div>Score: {gameState.score}</div>
+    <div>Level: {gameState.level}</div>
   </div>
 
   <div class="progress-label">
@@ -193,8 +185,8 @@
     <div class="cascade-message" role="status">{cascadeMessage}</div>
   {/if}
 
-  <div class:game-over={gameOver} class:invalid-swap={invalidSwap} class="board">
-    {#each board as row, r (r)}
+  <div class:game-over={gameState.gameOver} class:invalid-swap={invalidSwap} class="board">
+    {#each gameState.board as row, r (r)}
       {#each row as gem, c (gem.id)}
         <button
           type="button"
@@ -207,29 +199,25 @@
       {/each}
     {/each}
 
-    {#if cascadeMessage}
-      <div class="cascade-message" role="status">
-        {cascadeMessage}
-      </div>
-    {/if}
-    {#if gameOver}
+    {#if gameState.gameOver}
       <div class="game-over-message">
         <strong>Game over</strong>
         <span>No more moves</span>
-        <span>Score: {score}</span>
-        <span>Level: {level}</span>
-        <span>High score: {highScore}</span>
-        <button type="button" onclick={resetGame}>Play again</button>
+        <span>Score: {gameState.score}</span>
+        <span>Level: {gameState.level}</span>
+        <button type="button" onclick={() => resetGame(mode)}>Play again</button>
       </div>
     {/if}
   </div>
 </main>
+{/if}
 
 <style>
   .game-header {
     display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: space-between;
   }
 
   .game-root {
